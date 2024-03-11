@@ -1,0 +1,356 @@
+Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Caption("Reverse Issue")
+Gui.Form..Size(3930,4335)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(0,0)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MousePointer(0)
+Gui.Form..Event(UnLoad,Exit)
+Gui.Form.lblWO.Create(Label,"Work Order",True,975,255,0,105,210,True,0,"Arial",8,-2147483633,0)
+Gui.Form.lblSuffix.Create(Label,"Suffix",True,1935,255,0,1800,210,True,0,"Arial",8,-2147483633,0)
+Gui.Form.txtWO.Create(TextBox,"",True,1545,300,0,105,495,True,0,"Arial",8,-2147483643,1)
+Gui.Form.txtWO.Event(GotFocus,txtWO_GotFocus)
+Gui.Form.txtSuff.Create(TextBox,"",True,1215,300,0,1800,495,True,0,"Arial",8,-2147483643,1)
+Gui.Form.txtSuff.Event(GotFocus,txtSuff_GotFocus)
+Gui.Form.txtSuff.Event(LostFocus,txtSuff_LostFocus)
+Gui.Form.cmdWO.Create(Button)
+Gui.Form.cmdWO.Size(405,375)
+Gui.Form.cmdWO.Position(3105,450)
+Gui.Form.cmdWO.Caption("^")
+Gui.Form.cmdWO.Event(Click,cmdWO_Click)
+Gui.Form.lblPart.Create(Label,"Part: ",True,5040,255,0,105,1110,True,0,"Arial",8,-2147483633,0)
+Gui.Form.lblLoc.Create(Label,"Location:",True,5040,255,0,105,1425,True,0,"Arial",8,-2147483633,0)
+Gui.Form.lblLot.Create(Label,"Lot:",True,5040,255,0,105,1740,True,0,"Arial",8,-2147483633,0)
+Gui.Form.lblBin.Create(Label,"Bin:",True,5040,255,0,105,2055,True,0,"Arial",8,-2147483633,0)
+Gui.Form.lblHeat.Create(Label,"Heat:",True,5040,255,0,105,2370,True,0,"Arial",8,-2147483633,0)
+Gui.Form.lblSerial.Create(Label,"Serial:",True,5040,255,0,105,2685,True,0,"Arial",8,-2147483633,0)
+Gui.Form.lblQty.Create(Label,"Quantity:",True,750,255,0,105,3000,True,0,"Arial",8,-2147483633,0)
+Gui.Form.txtQty.Create(TextBox,"",True,1695,300,0,840,2955,True,0,"Arial",8,-2147483643,1)
+Gui.Form.txtQty.NumericOnly(1)
+Gui.Form.cmdOK.Create(Button)
+Gui.Form.cmdOK.Size(855,375)
+Gui.Form.cmdOK.Position(105,3360)
+Gui.Form.cmdOK.Caption("OK")
+Gui.Form.cmdOK.Event(Click,cmdOK_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.sWO.Declare(String)
+Variable.Global.sSuffix.Declare(String)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String)
+	
+	F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass,72000)
+	
+	F.Intrinsic.Control.SelectCase(V.Caller.Hook)
+		F.Intrinsic.Control.Case(15710)
+			'changing script 1 button to say messaging
+			V.Passed.000016.Set("Reverse Issue")
+		
+		F.Intrinsic.Control.Case(15760)
+			V.Global.sWO.Set(V.Passed.009990)
+			V.Global.sSuffix.Set(V.Passed.009991)
+			
+			F.Intrinsic.Control.If(V.Global.sWO,<>,"")
+				F.Intrinsic.Control.CallSub("GetData")
+			F.Intrinsic.Control.EndIf
+			
+			Gui.Form..Show
+			
+		F.Intrinsic.Control.CaseElse
+			F.Intrinsic.Control.CallSub("Exit")
+	F.Intrinsic.Control.EndSelect
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.Exit.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String)
+	
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.Exit.End
+
+Program.Sub.cmdWO_Click.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String)
+	V.Local.sRet.Declare(String)
+	
+	F.Intrinsic.UI.Browser(1000,"",V.Local.sRet)
+	
+	F.Intrinsic.Control.If(V.Local.sRet,<>,"***CANCEL***")
+		F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+		
+		Gui.Form.txtWO.Text(V.Local.sRet(0))
+		Gui.Form.txtSuff.Text(V.Local.sRet(1))
+		V.Global.sWO.Set(V.Local.sRet(0))
+		V.Global.sSuffix.Set(V.Local.sRet(1))
+		F.Intrinsic.Control.CallSub("GetData")
+	F.Intrinsic.Control.EndIf
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdWO_Click.End
+
+Program.Sub.txtSuff_LostFocus.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String)
+	
+	F.Intrinsic.Control.If(V.Screen.Form!txtWO.Text,<>," ")
+		V.Global.sWO.Set(V.Screen.Form!txtWO.Text)
+		V.Global.sSuffix.Set(V.Screen.Form!txtSuff.Text)
+		F.Intrinsic.Control.CallSub("GetData")
+	F.Intrinsic.Control.EndIf
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.txtSuff_LostFocus.End
+
+Program.Sub.txtSuff_GotFocus.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String)
+	
+	Gui.Form.txtSuff.SelectAll
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.txtSuff_GotFocus.End
+
+Program.Sub.txtWO_GotFocus.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String)
+	
+	Gui.Form.txtWO.SelectAll
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.txtWO_GotFocus.End
+
+Program.Sub.GetData.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String)
+	V.Local.fReverseQty.Declare(Float)
+	V.Local.sSql.Declare(String)
+	
+	F.Intrinsic.Control.If(V.DataTable.Bin.Exists,=,True)
+		F.Data.DataTable.Close("Bin")
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.If(V.DataTable.Operations.Exists,=,True)
+		F.Data.DataTable.Close("Operations")
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.If(V.DataTable.PressCount.Exists,=,True)
+		F.Data.DataTable.Close("PressCount")
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.If(V.DataTable.JobOp.Exists,=,True)
+		F.Data.DataTable.Close("JobOP")
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.If(V.DataTable.PL.Exists,=,True)
+		F.Data.DataTable.Close("PL")
+	F.Intrinsic.Control.EndIf
+	
+	'getting sum of material from press counter
+	F.Intrinsic.String.Build("Select sum(Stop_Count) SumCount From GCG_4407_Press_Count Where Job = '{0}' and Suffix = '{1}'",V.Global.sWO.Trim,V.Global.sSuffix.Trim,V.Local.sSql)
+	
+	F.Data.DataTable.CreateFromSQL("PressCount","con",V.Local.sSql,True)
+	
+	F.Intrinsic.String.Build("Select Sum(Hours_Actual) as SumCount From V_JOB_OPERATIONS Where Job = '{0}' and Suffix ='{1}' and LMO = 'M' and OPERATION like 'LF%'",V.Global.sWO.Trim,V.Global.sSuffix.Trim,V.Local.sSql)
+	F.Data.DataTable.CreateFromSQL("Operations","con",V.Local.sSql,True)
+	
+	F.Intrinsic.String.Build("Select Top 1 Part, Location, Lot, Bin, Heat, Serial_Number, Job, Suffix, Sequence From V_Item_History Where Job = '{0}' and Suffix ='{1}' and code_transaction = 'J55' and quantity < 0 order by Time_Item_History Desc",V.Global.sWO.Trim,V.Global.sSuffix.Trim,V.Local.sSql)
+	F.Data.DataTable.CreateFromSql("Bin","con",V.Local.sSql,True)
+	
+	F.Intrinsic.String.Build("Select Description, UM, Date_Due From V_Job_Operations Where Job = '{0}' and Suffix ='{1}' and Seq = '{2}'",V.Global.sWO.Trim,V.Global.sSuffix.Trim,V.DataTable.Bin(0).Sequence!FieldValTrim,V.Local.sSql)
+	F.Data.DataTable.CreateFromSQL("JobOp","con",V.Local.sSql,True)
+	
+	F.Intrinsic.String.Build("Select Product_Line From V_Inventory_Mstr Where Part = '{0}' ",V.DataTable.Bin(0).Part!FieldValTrim,V.Local.sSql)
+	F.Data.DataTable.CreateFromSQL("PL","con",V.Local.sSql,True)
+	
+	'getting last 
+	F.Intrinsic.Control.If(V.DataTable.PressCount(0).SumCount!FieldValFloat,<,V.DataTable.Operations(0).SumCount!FieldValFloat)
+		F.Intrinsic.Math.Sub(V.DataTable.Operations(0).SumCount!FieldValFloat,V.DataTable.PressCount(0).SumCount!FieldValFloat,V.Local.fReverseQty)
+		
+		Gui.Form.txtQty.Text(V.Local.fReverseQty)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.EndIf
+		
+	F.Intrinsic.String.Build("Part: {0}",V.DataTable.Bin(0).Part!FieldValTrim,V.Local.sSql)
+	Gui.Form.lblPart.Text(V.Local.sSql)
+	
+	F.Intrinsic.String.Build("Location: {0}",V.DataTable.Bin(0).Location!FieldValTrim,V.Local.sSql)
+	Gui.Form.lblLoc.Text(V.Local.sSql)
+	
+	F.Intrinsic.String.Build("Lot: {0}",V.DataTable.Bin(0).Lot!FieldValTrim,V.Local.sSql)
+	Gui.Form.lblBin.Text(V.Local.sSql)
+	
+	F.Intrinsic.String.Build("Heat: {0}",V.DataTable.Bin(0).Heat!FieldValTrim,V.Local.sSql)
+	Gui.Form.lblHeat.Text(V.Local.sSql)
+	
+	F.Intrinsic.String.Build("Serial: {0}",V.DataTable.Bin(0).Serial_Number!FieldValTrim,V.Local.sSql)
+	Gui.Form.lblSerial.Text(V.Local.sSql)
+	
+	Gui.Form.txtWO.Text(V.Global.sWO.Trim)
+	Gui.Form.txtSuff.Text(V.Global.sSuffix.Trim)
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.GetData.End
+
+Program.Sub.cmdOK_Click.Start
+F.Intrinsic.Control.Try
+	V.Local.sError.Declare(String)
+	V.Local.sPart.Declare(String)
+	V.Local.sRev.Declare(String)
+	V.Local.sLine.Declare(String)
+	V.Local.sFile.Declare(String)
+	V.Local.sSql.Declare(String)
+	V.Local.sSeq.Declare(String)
+	V.Local.sQty.Declare(String)
+	V.Local.sTemp.Declare(String)
+	V.Local.iRptID.Declare(Long)
+	V.Local.lBIRunID.Declare(Long)
+	V.Local.lLogID.Declare(Long)
+	
+	F.Intrinsic.String.RPad(V.DataTable.Bin(0).Part!FieldValTrim," ",20,V.Local.sPart)
+	F.Intrinsic.String.Right(V.Local.sPart,3,V.Local.sRev)
+	F.Intrinsic.String.Left(V.Local.sPart,17,V.Local.sPart)
+	
+	F.Intrinsic.String.Build("SELECT TOP 1 SEQ FROM V_JOB_OPERATIONS WHERE JOB = '{0}' AND SUFFIX = '{1}' AND LMO = 'M' AND OPERATION LIKE 'LF%' ORDER BY SEQ ASC ",V.Global.sWO,V.Global.sSuffix,V.Local.sSql)
+	F.ODBC.Connection!Con.OpenLocalRecordsetRO("rstSeq",V.Local.sSQL)
+	F.Intrinsic.Control.If(V.ODBC.Con!rstSEQ.EOF,=,False)
+		V.Local.sSeq.Set(V.ODBC.Con!rstSEQ.FieldValTrim!SEQ)
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.String.Split(V.Local.sQty,".",V.Local.sTemp)
+	F.Intrinsic.Math.Mult(V.Screen.Form!txtQty.Text,-1,V.Local.sQty)
+	F.Intrinsic.Control.If(V.Local.sTemp.UBound,=,0)
+		'adding .00 to qty if not the qty gets put in as a decimal by the callwrapper
+		F.Intrinsic.String.Build("{0}.00",V.Local.sQty,V.Local.sQty)	
+	F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.String.Build("{0},{1},{2},{3},{4},{5},,{6},{7},{8},{9}",V.Local.sPart.Trim,V.Local.sRev.Trim,V.DataTable.Bin(0).Location!FieldValTrim,V.Local.sQty,V.DataTable.Bin(0).Lot!FieldValTrim,V.DataTable.Bin(0).Bin!FieldValTrim,V.DataTable.Bin(0).Serial_Number!FieldValTrim,V.Global.sWO.Trim,V.Global.sSuffix.Trim,V.Local.sSeq,V.Local.sLine)
+	
+	F.Intrinsic.Control.If(V.Local.sLine.Trim,<>,"")
+		F.Intrinsic.String.Build("{0}\L{1}{2}MOPEN.txt",V.Caller.FilesDir,V.Caller.CompanyCode,V.Caller.Terminal,V.Local.sFile)
+		F.Intrinsic.File.String2File(V.Local.sFile,V.Local.sLine.Trim)
+		
+		F.Intrinsic.String.Build("L{0}{1}MOPEN.txt",V.Caller.CompanyCode,V.Caller.Terminal,V.Local.sFile)
+		F.Global.General.CallWrapperSync(450100, v.Local.sFile)
+		
+		F.Data.DataTable.Create("Temp")
+		F.Data.DataTable.AddColumn("Temp","Bin","String")
+		F.Data.DataTable.AddColumn("Temp","BIRunID","Long")
+		F.Data.DataTable.AddColumn("Temp","Cust_Part","String")
+		F.Data.DataTable.AddColumn("Temp","Cust_PO_From_SO","String")
+		F.Data.DataTable.AddColumn("Temp","Customer","String")
+		F.Data.DataTable.AddColumn("Temp","Customer_Name","String")
+		F.Data.DataTable.AddColumn("Temp","Descr","String")
+		F.Data.DataTable.AddColumn("Temp","Heat","String")
+		F.Data.DataTable.AddColumn("Temp","Inv_Qty_Rec","String")
+		F.Data.DataTable.AddColumn("Temp","Inv_Um","String")
+		F.Data.DataTable.AddColumn("Temp","Lbl_Create_Date","String")
+		F.Data.DataTable.AddColumn("Temp","Locn","String")
+		F.Data.DataTable.AddColumn("Temp","Part","String")
+		F.Data.DataTable.AddColumn("Temp","Lot","String")
+		F.Data.DataTable.AddColumn("Temp","PO_From_WO","String")
+		F.Data.DataTable.AddColumn("Temp","Prod_Line","String")
+		F.Data.DataTable.AddColumn("Temp","Qty_On_Label","Float")
+		F.Data.DataTable.AddColumn("Temp","Seq","String")
+		F.Data.DataTable.AddColumn("Temp","Serial","String")
+		F.Data.DataTable.AddColumn("Temp","SO","String")
+		F.Data.DataTable.AddColumn("Temp","SO_Line","String")
+		F.Data.DataTable.AddColumn("Temp","User_ID","String")
+		F.Data.DataTable.AddColumn("Temp","WO","String")
+		F.Data.DataTable.AddColumn("Temp","WO_Due_Date","String")
+		F.Data.DataTable.AddColumn("Temp","WO_Seq","String")
+		F.Data.DataTable.AddColumn("Temp","WO_Suffix","String")
+		
+		F.Intrinsic.Math.Mult(V.Local.sQty,-1,V.Local.sQty)
+		
+		F.Data.DataTable.AddRow("Temp","Bin",V.DataTable.Bin(0).Bin!FieldValTrim,"BIRunID",V.Local.lBIRunID,"Descr",V.DataTable.JobOp(0).Description!FieldValTrim,"Heat",V.DataTable.Bin(0).Heat!FieldValTrim,"Inv_Um",V.DataTable.JobOp(0).Um!FieldValTrim,"Lbl_Create_Date",V.Ambient.Date,"Locn",V.DataTable.Bin(0).Location!FieldValTrim,"Part",V.DataTable.Bin(0).Part!FieldValTrim,"Lot",V.DataTable.Bin(0).Lot!FieldValTrim,"Prod_Line",V.DataTable.PL(0).Product_Line!FieldValTrim,"Qty_On_Label",V.Local.sQty.Float,"Seq",V.DataTable.Bin(0).Sequence!FieldValTrim,"Serial",V.DataTable.Bin(0).Serial_Number!FieldValTrim,"User_ID",V.Caller.User,"WO",V.DataTable.Bin(0).Job!FieldValTrim,"WO_Seq",V.DataTable.Bin(0).Sequence!FieldValTrim,"WO_Suffix",V.DataTable.Bin(0).Suffix!FieldValTrim,"WO_Due_Date",V.DataTable.JobOp(0).Date_Due!FieldValTrim)
+		
+		F.Global.BI.GetIDFromName("GCG_4407_RTS_4X3.lab",V.Local.iRptID)
+		F.Global.BI.GetRunID(V.Local.lBIRunID)
+		F.Global.BI.StartLogging(V.Local.lBIRunID,V.Local.iRptID,0,"",V.Local.lLogID)
+		F.Global.BI.StopLogging(V.Local.lLogID)
+		F.Global.BI.PrintCodesoftLabelFromDataTable(V.Local.lBIRunID,V.Local.lLogID,"Temp","",True)
+		
+		F.Data.DataTable.Close("Temp")
+		
+	F.Intrinsic.Control.EndIf
+	
+	Gui.Form.lblPart.Text("Part:")
+	
+	Gui.Form.lblLoc.Text("Location:")
+	
+	Gui.Form.lblBin.Text("Lot:")
+	
+	Gui.Form.lblHeat.Text("Heat:")
+	
+	Gui.Form.lblSerial.Text("Serial:")
+	
+	Gui.Form.txtWO.Text("")
+	Gui.Form.txtSuff.Text("")
+	GUi.Form.txtQty.Text("")
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("{0}: {1}",V.Ambient.CurrentSubroutine,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End
+
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdOK_Click.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$12:00:00 AM$}$False
+Program.Sub.Comments.End
