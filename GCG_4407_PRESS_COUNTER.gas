@@ -1,0 +1,753 @@
+Program.Sub.ScreenSU.Start
+Gui.SS_Form1..create
+Gui.SS_Form1..caption("Press Counter")
+Gui.SS_Form1..size(13590,7650)
+Gui.SS_Form1..position(0,0)
+Gui.SS_Form1..forecolor(0)
+Gui.SS_Form1..BackColor(-2147483634)
+Gui.SS_Form1..maxbutton(False)
+Gui.SS_Form1..minbutton(False)
+Gui.SS_Form1..mousepointer(0)
+Gui.SS_Form1..sizeable(False)
+Gui.SS_Form1..MinX(0)
+Gui.SS_Form1..MinY(0)
+Gui.SS_Form1..Event(Resize,SS_Form1_Resize)
+Gui.SS_Form1..Event(UnLoad,SS_Form1_UnLoad)
+Gui.SS_Form1.lbl_JobInfo.create(label,"00000 - 000 - 000000",True,10755,855,1,420,855,True,0,Arial,48,-2147483634,0)
+Gui.SS_Form1.lbl_JobInfo.tabstop(True)
+Gui.SS_Form1.lbl_JobInfo.tabindex(1)
+Gui.SS_Form1.lbl_JobInfo.ForeColor(-2147483635)
+Gui.SS_Form1.lbl_CurrentCount.create(label,"000000",True,12345,3060,1,-465,4140,True,0,Arial,150,-2147483634,0)
+Gui.SS_Form1.lbl_CurrentCount.tabstop(True)
+Gui.SS_Form1.lbl_CurrentCount.tabindex(2)
+Gui.SS_Form1.cmdOk.create(button)
+Gui.SS_Form1.cmdOk.Caption("Ok")
+Gui.SS_Form1.cmdOk.size(1005,360)
+Gui.SS_Form1.cmdOk.position(195,7170)
+Gui.SS_Form1.cmdOk.tabstop(True)
+Gui.SS_Form1.cmdOk.tabindex(3)
+Gui.SS_Form1.lbl1.Create(Label,"Work Order",True,3045,615,0,195,165,True,0,"Arial",26,-2147483634,0)
+Gui.SS_Form1.lbl2.Create(Label,"Est. Footage:",True,2640,600,0,285,2535,True,0,"Arial",20,-2147483628,0)
+Gui.SS_Form1.lbl_Footage.Create(Label,"000000",True,3210,600,0,2925,2535,True,0,"Arial",20,-2147483628,0)
+Gui.SS_Form1.lbl3.Create(Label,"Actual Footage:",True,3525,555,0,285,3330,True,0,"Arial",20,-2147483628,0)
+Gui.SS_Form1.lbl4.Create(Label,"Total Footage:",True,2880,600,0,6405,2535,True,0,"Arial",20,-2147483628,0)
+Gui.SS_Form1.lbl_Total.Create(Label,"000000",True,3720,600,0,9315,2535,True,0,"Arial",20,-2147483628,0)
+Gui.SS_Form1.lbl5.Create(Label,"Amount Issued:",True,3000,600,0,285,1875,True,0,"Arial",20,-2147483628,0)
+Gui.SS_Form1.lbl_Issued.Create(Label,"000000",True,3690,600,0,3255,1875,True,0,"Arial",20,-2147483628,0)
+Gui.SS_Form2..create
+Gui.SS_Form2..caption("Select Com Port")
+Gui.SS_Form2..size(2250,1250)
+Gui.SS_Form2..position(0,0)
+Gui.SS_Form2..forecolor(0)
+Gui.SS_Form2..BackColor(-2147483633)
+Gui.SS_Form2..maxbutton(False)
+Gui.SS_Form2..minbutton(False)
+Gui.SS_Form2..mousepointer(0)
+Gui.SS_Form2..sizeable(False)
+Gui.SS_Form2..MinX(0)
+Gui.SS_Form2..MinY(0)
+Gui.SS_Form2.lbl_txtComPort.create(label,"Enter Com Port# and Press Enter",True,1800,200,1,100,135,True,0,Arial,8,-2147483633,0)
+Gui.SS_Form2.lbl_txtComPort.LabelStretch(True)
+Gui.SS_Form2.txtComPort.create(textbox,"",True,1800,330,1,100,335,True,0,Arial,8,16777215,1)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.bIsRunning.Declare(Boolean,False)
+v.Global.sJob.declare(String)
+v.Global.sSuff.declare(String)
+v.Global.sSeq.declare(String)
+v.Global.sWC.declare(String)
+v.Global.sEmp.declare(String)
+v.Global.sCurrentDataFile.Declare(String)
+v.Global.sStartFile.Declare(String)
+v.Global.sStopFile.Declare(String)
+v.Global.sResetFile.Declare(String)
+v.Global.iCommID.Declare(Long)
+v.Global.sComPortFile.Declare(String)
+V.Global.sPIDFile.Declare(String)
+V.Global.sAnswerFile.Declare(String)
+v.Global.iID.Declare(Long)
+
+'not sure if we will use this variable is for keeping time
+v.Global.dLastCommandProcessed.Declare(Date)
+
+Variable.Global.fTotalFTG.Declare(Float,0)
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Coded by: Silas
+'2/7/2017
+'Machine Integration via Serial Com Port + PLC
+'Getting Linear Feet and calculating Good Pieces.
+'This only works for single jobs on a workcenter and employee has to clock in and out.
+'Workcenter GUIs that use this program have to contain the word "PRESS" in the description, or else this will NOT run.
+'For this program, 1 GUI = 1 WC always for Presses on the shop floor, and also the Serial Port is directly connected from GUI Terminal to PLC via Serial_Over_USB.
+
+v.Local.iTimer.Declare(Float)
+v.Local.sData.Declare(String)
+v.Local.bExists.Declare(Boolean)
+v.Local.fTotalFTG.Declare(Float)
+
+
+f.ODBC.Connection!conx.OpenConnection(v.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass,72000)
+
+'Get GUI passed information
+
+F.Intrinsic.Debug.InvokeDebugger
+
+F.Intrinsic.Debug.Stop
+
+f.Intrinsic.Control.CallSub(setpassedvars)
+
+'Set file names being used for terminal.
+f.Intrinsic.Control.CallSub(SetFQPs)
+
+'Check Workcenter, make sure it is a Press in our table and Configured.
+f.Intrinsic.Control.CallSub(CheckWC)
+
+'Check to See if Running?
+'If NOT Running, then End
+f.Intrinsic.Control.CallSub(isRunning)
+
+'START JOB SCAN HOOK OR GUI ENTRY
+'If Start Job(scan and entry),
+f.Intrinsic.Control.If(v.Caller.Hook,=,15755)
+	'Check Current Data for Current Job from file that is writtin while program is in **IDLE** See Below
+'	f.Intrinsic.Control.CallSub(checkcurrentdata)
+	
+	'write PLC command files for current gui
+	f.Intrinsic.Control.CallSub(WriteCommandFiles)
+	
+	'Show screen
+	f.Intrinsic.Control.If(v.Global.bIsRunning,=,False)
+		f.Intrinsic.File.Exists(v.Global.sStopFile,v.Local.bExists)
+		f.Intrinsic.Control.If(v.Local.bExists,=,True)
+			f.Intrinsic.File.DeleteFile(v.Global.sStopFile)
+		f.Intrinsic.Control.EndIf
+		
+		f.Intrinsic.Control.CallSub(OpenComPort)
+
+		'DO an inital check before showing screen.
+		f.Intrinsic.Control.CallSub(CheckCommandFiles)
+		gui.SS_Form1..Position(0,0)
+		gui.SS_Form1..Show
+		
+		'**IDLE** and check for command file(s) **IDLE**
+		'write Pid file that contains windows process id
+		
+		f.Intrinsic.String.ConvertToString(v.Ambient.PID,v.Local.sData)
+		f.Intrinsic.File.String2File(v.Global.sPIDFile,v.Local.sData)
+		
+		'Debug Logging needs to be OFF when Live because of **IDLE**. 
+		'f.Intrinsic.Debug.ToggleOutput(False)
+		
+		f.Intrinsic.Control.Do
+	
+			'check for commands that have been written from GUI
+			f.Intrinsic.Control.CallSub(CheckCommandFiles)
+				
+			'Get Current Count every time we loop.
+			f.Communication.Serial.SendOutput("01A")
+			f.Intrinsic.UI.Sleep(.25)
+			f.Communication.Serial.SendOutput("002")
+			f.Intrinsic.UI.Sleep(.5)
+			f.Communication.Serial.GetInput(v.Local.sData)
+			f.Intrinsic.Control.If(v.Local.sData.Trim,=,"")
+
+				f.Intrinsic.Math.Add(.25,v.Local.iTimer,v.Local.iTimer)
+				f.Intrinsic.UI.Sleep(.25)
+				f.Intrinsic.Control.If(v.Local.iTimer,>,5)
+					gui.SS_Form1.lbl_CurrentCount.BackColor(v.Color.Red)
+					gui.SS_Form1.lbl_CurrentCount.ForeColor(v.Color.White)
+					gui.SS_Form1.lbl_CurrentCount.Caption("!!!!!!")
+				f.Intrinsic.Control.endif
+			f.Intrinsic.Control.Else
+				v.Local.iTimer.Set(0)
+				gui.SS_Form1.lbl_CurrentCount.BackColor(v.Color.White)
+				gui.SS_Form1.lbl_CurrentCount.ForeColor(v.Color.Black)
+				gui.SS_Form1.lbl_CurrentCount.Caption(v.Local.sdata)
+				'set the total footage for job
+				f.Intrinsic.Math.Add(v.Global.fTotalFTG,v.Local.sData.Float,v.Local.fTotalFTG)
+				gui.SS_Form1.lbl_Total.Text(v.Local.fTotalFTG.String)
+			f.Intrinsic.Control.EndIf
+			
+			
+			'Check for Last Command Processed and Current Count.
+			'if Idle for 15 minutes and Count NOT increasing from Last, then end program !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			'call new sub here for this.
+			
+		f.Intrinsic.Control.Loop	
+	'end program	
+	f.Intrinsic.Control.Else
+		'end program after writing command files if another instance is already running
+		f.Intrinsic.Control.End
+
+	f.Intrinsic.Control.EndIf	
+f.Intrinsic.Control.EndIf
+
+
+'UPDATE PIECES from GUI
+'If Update Job
+f.Intrinsic.Control.If(v.Caller.Hook,=,15840)
+
+	f.Intrinsic.Control.If(v.Global.bIsRunning,=,False)
+		'Counter is NOT running. 
+		f.Intrinsic.UI.Msgbox("Counter is Not Running, Pieces NOT Calculated.")
+		f.Intrinsic.Control.End
+
+	f.Intrinsic.Control.EndIf
+	'Calculate Good Pieces by getting current linear feet and multiplying by Units from Job_operations
+	'where LMO = M, and OPERATION = 'LF/M'
+	f.Intrinsic.Control.CallSub(CalculateGoodPieces)
+f.Intrinsic.Control.EndIf
+
+
+
+Program.Sub.Main.End
+
+Program.Sub.SS_Form1_UnLoad.Start
+'f.Intrinsic.Control.End
+
+'do not let them end the program from this one, they have to update pieces in order to stop the process.
+
+Program.Sub.SS_Form1_UnLoad.End
+
+Program.Sub.SS_Form1_Resize.Start
+Program.Sub.SS_Form1_Resize.End
+
+Program.Sub.WriteCommandFiles.Start
+F.Intrinsic.Control.SetErrorHandler("WriteCommandFiles_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.sCmd.Declare(String)
+
+
+'if we made it this file then write command to start job
+f.Intrinsic.String.Build("{0}*!*{1}*!*{2}*!*{3}*!*{4}",v.Global.sJob,v.Global.sSuff,v.Global.sSeq,v.Global.sWC,v.Global.sEmp,v.Local.sCmd)
+
+'write command file
+f.Intrinsic.File.String2File(v.Global.sStartFile,v.Local.sCmd)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("WriteCommandFiles_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4407_PRESS_COUNTER.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.WriteCommandFiles.End
+
+Program.Sub.isRunning.Start
+F.Intrinsic.Control.SetErrorHandler("isRunning_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.bStatus.Declare(Boolean)
+v.Local.iPid.Declare(String)
+v.Local.sPid.Declare(String)
+v.Local.iRet.Declare(Long)
+
+'Check for Process ID in Windows to see if the program is running already in **IDLE** and processing command files
+f.Intrinsic.File.Exists(v.Global.sPIDFile,v.Local.bStatus)
+f.Intrinsic.Control.If(v.Local.bStatus,=,True)
+
+	f.Intrinsic.File.File2String(v.Global.sPIDFile,v.Local.sPid)
+	f.Intrinsic.String.StripCharacters(v.Local.sPid,v.Local.sPid)
+	f.Intrinsic.Task.PIDRunning(v.Local.sPid.Long,v.Global.bIsRunning)
+f.Intrinsic.Control.EndIf
+
+'checks different variables before continuing
+f.Intrinsic.Control.If(v.Global.bIsRunning,=,True)
+	'Check Employee to see if same user
+	f.Intrinsic.Control.CallSub(checkEmployee)
+	
+	'Leave Jobs Hook Pre: if this is called, ask if they want to stop counter.
+	F.Intrinsic.Control.If(v.Caller.Hook,=,15820)
+		f.Intrinsic.UI.Msgbox("Stop Press Counter?","Stop Press Counter?",4,v.Local.iRet)
+		f.Intrinsic.Control.If(v.Local.iRet,=,6)
+			'Terminate Process for Counter.
+			f.Intrinsic.Task.TerminatePID(v.Local.sPid.Long)
+		f.Intrinsic.Control.Else
+			v.Passed.777777.Set(1)
+			f.Intrinsic.Control.End
+
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.EndIf
+	
+f.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("isRunning_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4407_PRESS_COUNTER.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.isRunning.End
+
+Program.Sub.CalculateGoodPieces.Start
+F.Intrinsic.Control.SetErrorHandler("CalculateGoodPieces_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.bExists.Declare(Boolean)
+v.Local.sRet.Declare(String)
+v.Local.sTemp.Declare(String)
+v.Local.iRet.Declare(Long)
+v.Local.sSql.Declare(String)
+v.Local.iTimer.Declare(Float)
+
+
+f.Intrinsic.Control.AddEventHandler("IPMAnswer","IPMAnser")
+
+F.Intrinsic.UI.InvokeWaitDialog("Stopping Press Counter...")
+
+f.Intrinsic.File.String2File(v.Global.sStopFile,"Stop")
+
+'Delete any answer file from last instance.
+f.Intrinsic.File.Exists(v.Global.sAnswerFile,v.Local.bExists)
+f.Intrinsic.Control.If(v.Local.bExists,=,True)
+	f.Intrinsic.File.DeleteFile(v.Global.sAnswerFile)
+f.Intrinsic.Control.EndIf
+
+v.Local.bExists.Set(false)
+'Check for Answer file.
+f.Intrinsic.Control.DoUntil(v.Local.bExists,=,True)
+	f.Intrinsic.Control.If(v.Local.iTimer,=,20)
+		f.Intrinsic.UI.Msgbox("Counter NOT Responding. Try Again?","Not Responding",4,v.Local.iRet)
+		f.Intrinsic.Control.If(v.Local.iRet,<>,6)
+			f.Intrinsic.Control.End
+
+		f.Intrinsic.Control.Else
+			'counter Reset, try again.
+			v.Local.iTimer.Set(0)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.EndIf
+	
+	'Check and Keep track of time.
+	f.Intrinsic.File.Exists(v.Global.sAnswerFile,v.Local.bExists)
+	f.Intrinsic.UI.Sleep(.25)
+	f.Intrinsic.Math.Add(v.Local.iTimer,.25,v.Local.iTimer)	
+f.Intrinsic.Control.Loop
+
+'Get the current data file
+f.Intrinsic.File.Exists(v.Global.sCurrentDataFile,v.Local.bExists)
+F.Intrinsic.Control.If(v.Local.bExists,=,True)
+	f.Intrinsic.File.File2String(v.Global.sCurrentDataFile,v.Local.sTemp)
+	f.Intrinsic.String.Split(v.Local.sTemp,"*!*",v.Local.sTemp)
+	
+	'Get the Qty to Make 1 from Operations
+	f.Intrinsic.String.Build("Select * from v_JOB_OPERATIONS where JOB = '{0}' and Suffix = '{1}' and LMO = 'M' and Operation like 'LF/%' ",v.Local.sTemp(0).Trim,v.Local.sTemp(1).Trim,v.Local.sSql)
+	f.ODBC.Connection!conx.OpenRecordsetRO("rst",v.Local.sSql)
+	f.Intrinsic.Control.If(v.ODBC.conx!rst.EOF,<>,true)
+		'Good Pieces = Linear Feet Count * Qty to Make 1 from Raw Material Sequence based on criteria in the select statement. 
+		f.Intrinsic.Math.Mult(v.Local.sTemp(5).Long,v.ODBC.conx!rst.FieldVal!UNITS,v.Local.iRet)
+		v.Passed.000001.Set(v.Local.iRet)
+		
+		'update Stop Count
+		f.Intrinsic.String.Build("Select * from GCG_4407_PRESS_COUNT where REC_ID = '{0}' ",v.Local.sTemp(6).Long,v.Local.sSql)
+		f.ODBC.Connection!conx.OpenRecordsetRW("rst2",v.Local.sSql)
+		f.Intrinsic.Control.If(v.ODBC.conx!rst2.EOF,<>,True)
+			f.ODBC.conx!rst2.Set!STOP_COUNT(v.Local.sTemp(5).Long)
+			f.ODBC.conx!rst2.Update
+		f.Intrinsic.Control.EndIf
+		f.ODBC.conx!rst2.Close
+		
+		f.Intrinsic.UI.Sleep(.5)
+		f.Intrinsic.File.Exists(v.Global.sStopFile,v.Local.bExists)
+		f.Intrinsic.Control.If(v.Local.bExists,=,True)
+			f.Intrinsic.File.DeleteFile(v.Global.sStopFile)
+		F.Intrinsic.Control.EndIf
+		
+		f.Intrinsic.File.Exists(v.Global.sCurrentDataFile,v.Local.bExists)
+		f.Intrinsic.Control.If(v.Local.bExists,=,True)
+			f.Intrinsic.File.DeleteFile(v.Global.sCurrentDataFile)
+		f.Intrinsic.Control.EndIf
+		
+	f.Intrinsic.Control.EndIf
+	f.ODBC.conx!rst.Close
+	
+f.Intrinsic.Control.EndIf
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CalculateGoodPieces_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4407_PRESS_COUNTER.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CalculateGoodPieces.End
+
+Program.Sub.CheckCommandFiles.Start
+F.Intrinsic.Control.SetErrorHandler("CheckCommandFiles_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.sCmd.Declare(String)
+v.Local.sCurrData.Declare(String)
+v.Local.bExists.Declare(Boolean)
+v.Local.iRet.Declare(Long)
+v.Local.iID.Declare(Long)
+
+
+'Only continue if Start Count Exists
+f.Intrinsic.File.Exists(v.Global.sStartFile,v.Local.bExists)
+f.Intrinsic.Control.If(v.Local.bExists,=,True)
+		
+	'send commands to PLC
+	'Reset
+	f.Communication.Serial.SendOutput("01C")
+	f.Intrinsic.UI.Sleep(.5)
+	f.Communication.Serial.SendOutput("02C")
+	f.Intrinsic.UI.Sleep(.5)
+	'Start
+	f.Communication.Serial.SendOutput("01A")
+	f.Intrinsic.UI.Sleep(.5)
+	f.Communication.Serial.SendOutput("02A")
+	
+	'when starting Job, we need to reset count, then start. 
+	F.Intrinsic.File.File2String(v.Global.sStartFile,v.Local.sCmd)
+	
+	'UPDATE TABLE FOR REPORTING
+	F.ODBC.Connection!conx.OpenRecordsetRW("rst","Select * from GCG_4407_PRESS_COUNT")
+	f.ODBC.conx!rst.AddNew
+	f.ODBC.Connection!conx.getID("GCG_4407_PRESS_COUNT","REC_ID",True,v.Local.iID)
+	f.ODBC.conx!rst.Set!REC_ID(v.Local.iID)
+	f.ODBC.conx!rst.Set!JOB(v.Global.sJob)
+	f.ODBC.conx!rst.Set!SUFFIX(v.Global.sSuff)
+	f.ODBC.conx!rst.Set!SEQ(v.Global.sSeq)
+	f.ODBC.conx!rst.Set!WORKCENTER(v.Global.sWC)
+	f.ODBC.conx!rst.Set!EMPLOYEE(v.Global.sEmp)
+	f.ODBC.conx!rst.Set!START_DATE(V.Ambient.Now)
+	f.ODBC.conx!rst.Set!START_COUNT(0)
+	f.ODBC.conx!rst.Set!STOP_COUNT(0)
+	F.ODBC.conx!rst.Update
+	F.ODBC.conx!rst.Close
+	
+	'Write data for current data, adding current qty, set to 0 since we are STARTing at job
+	f.Intrinsic.String.Build("{0}*!*0*!*{1}",v.Local.sCmd,v.Local.iID.String,v.Local.sCurrData)
+	
+	'Write updated current data file
+	f.Intrinsic.File.String2File(V.Global.sCurrentDataFile,v.Local.sCurrData)
+	
+	'update global variables
+	f.Intrinsic.String.Split(v.Local.sCmd,"*!*",v.Local.sCmd)
+	v.Global.sJob.Set(v.Local.sCmd(0).Trim)
+	v.Global.sSuff.Set(v.Local.sCmd(1).Trim)
+	v.Global.sSeq.Set(v.Local.sCmd(2).Trim)
+	v.Global.sWC.Set(v.Local.sCmd(3).Trim)
+	v.Global.sEmp.Set(v.Local.sCmd(4).Trim)
+	v.Global.iID.Set(v.Local.iID)
+	
+	F.Intrinsic.String.Build("{0} - {1} - {2}",v.Global.sJob,v.Global.sSuff,v.Global.sSeq,v.Local.sCurrData)
+	gui.SS_Form1.lbl_JobInfo.Caption(v.Local.sCurrData.Trim)
+	
+
+	'command finished processing, delete
+	f.Intrinsic.File.DeleteFile(v.Global.sStartFile)
+f.Intrinsic.Control.EndIf
+
+'if Stop Count Exists, Update Pieces Hook was Fired.
+f.Intrinsic.File.Exists(v.Global.sStopFile,v.Local.bExists)
+f.Intrinsic.Control.If(v.Local.bExists,=,True)
+	'Bring to Front.
+	f.Intrinsic.API.SetWindowFocus(v.Caller.Handle)
+	'Get the current Count
+	gui.SS_Form1..AlwaysOnTop(True)
+	f.Intrinsic.UI.Sleep(.5)
+	gui.SS_Form1..AlwaysOnTop(False)
+	F.Intrinsic.UI.Msgbox("Stop Count, Update Pieces?","Stop Count?",4,v.Local.iRet)
+	f.Intrinsic.Control.If(v.Local.iRet,=,6)
+		'If they said Yes to Stopping count, then get current count and close program. 
+		f.Communication.Serial.SendOutput("002")
+		f.Intrinsic.UI.Sleep(.5)
+		f.Communication.Serial.GetInput(v.Local.sCmd)
+		f.Intrinsic.String.Build("{0}*!*{1}*!*{2}*!*{3}*!*{4}*!*{5}*!*{6}",v.Global.sJob,v.Global.sSuff,v.Global.sSeq,v.Global.sWC,v.Global.sEmp,v.Local.sCmd.Long,v.Global.iID,v.Local.sCmd)
+		f.Intrinsic.File.String2File(v.Global.sCurrentDataFile,v.Local.sCmd)		
+		'Write other answer file that lets them know other program instance answered.
+		f.Intrinsic.File.String2File(v.Global.sAnswerFile,"Yes")
+		'Delete Files that will interfere.
+		f.Intrinsic.File.Exists(v.Global.sPIDFile,v.Local.bExists)
+		f.Intrinsic.File.DeleteFile(v.Global.sPIDFile)
+		f.Intrinsic.File.DeleteFile(v.Global.sStopFile)
+		'End
+		f.Intrinsic.Control.End	
+		
+	f.Intrinsic.Control.EndIf
+	f.Intrinsic.File.DeleteFile(v.Global.sStopFile)
+f.Intrinsic.Control.EndIf
+
+gui.SS_Form1..AlwaysOnTop(False)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CheckCommandFiles_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4407_PRESS_COUNTER.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CheckCommandFiles.End
+
+Program.Sub.CheckCurrentData.Start
+F.Intrinsic.Control.SetErrorHandler("CheckCurrentData_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.sCurrJob.Declare(String)
+v.Local.bExists.Declare(Boolean)
+v.Local.sSql.Declare(String)
+
+''get the file contents that are being written if program is in **IDLE** mode
+'f.Intrinsic.File.Exists(v.Global.sCurrentDataFile,v.Local.bExists)
+'
+'f.Intrinsic.Control.If(v.Local.bExists,=,True)
+'	'check job in process for current data that is in the current command file that exists, if in process on this terminal, then notify user if differnt job
+'	f.Intrinsic.File.File2String(v.Global.sCurrentDataFile,v.Local.sCurrJob)
+'	'check to see if current job is running in JOBS in PROCESS GUI
+'	f.Intrinsic.String.Split(v.Local.sCurrJob,"*!*",v.Local.sCurrJob)
+'	f.Intrinsic.String.Build("Select * from JOBS_IN_PROCESS_G where Job = '{0}' and suffix = '{1}' and Seq = '{2}' and WORKCENTER = '{3}' and EMPLOYEE = '{4}' ",v.Local.sCurrJob(0).Trim,v.Local.sCurrJob(1).Trim,v.Local.sCurrJob(2).Trim,v.Local.sCurrJob(3).Trim,v.Local.sCurrJob(4).Trim,v.Local.sSql)
+'	f.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",v.Local.sSql)
+'	f.Intrinsic.Control.If(v.ODBC.conx!rst.EOF,<>,true)
+'		'Notify User, end program
+'		f.Intrinsic.String.Build("You are still Scanned into Job# {0}-{1} @ this Press, UPDATE Pieces before starting new job!",v.Local.sCurrJob(0),v.Local.sCurrJob(1),v.Local.sSql)
+'		f.Intrinsic.UI.Msgbox(v.Local.sSql)
+'		f.Intrinsic.Control.End
+
+'
+'	f.Intrinsic.Control.EndIf
+'	f.ODBC.conx!rst.Close
+'
+'f.Intrinsic.Control.EndIf
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CheckCurrentData_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4407_PRESS_COUNTER.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CheckCurrentData.End
+
+Program.Sub.SetFQPs.Start
+'Files that will be processed by current terminal instance of this program running.
+
+'Command Files
+'Start Count: \\server\global\files\WC_cccttt.Start
+'File Contains: JOB*!*SUFFIX*!*SEQUENCE*!*WC*!*EMPLOYEE
+f.Intrinsic.String.Build("{0}\{1}_{2}{3}.Start",v.Caller.FilesDir,v.Global.sWC.Trim,v.Caller.CompanyCode,v.Caller.Terminal,v.Global.sStartFile)
+
+'Current Data: \\server\global\files\WC_cccttt.Current
+'File Contains: JOB*!*SUFFIX*!*SEQUENCE*!*WC*!*EMPLOYEE*!*CURRENT_COUNT(linear Feet)
+f.Intrinsic.String.Build("{0}\{1}_{2}{3}.Current",v.Caller.FilesDir,v.Global.sWC.Trim,v.Caller.CompanyCode,v.Caller.Terminal,v.Global.sCurrentDataFile)
+
+'file that holds Com Port ID for this terminal Windows Device Manager>Com Ports>"COM1" = 1. so this file would contain the #1.(used for serial commands)
+f.Intrinsic.String.Build("{0}\{1}_{2}{3}.Cid",v.Caller.FilesDir,v.Global.sWC.Trim,v.Caller.CompanyCode,v.Caller.Terminal,v.Global.sComPortFile)
+
+'PID File
+'File Contains: Process Id from Windows Task Manager>Processes
+f.Intrinsic.String.Build("{0}\{1}_{2}{3}.Pid",v.Caller.FilesDir,v.Global.sWC.Trim,v.Caller.CompanyCode,v.Caller.Terminal,v.Global.sPIDFile)
+
+'Answer File
+f.Intrinsic.String.Build("{0}\{1}_{2}{3}.Answer",v.Caller.FilesDir,v.Global.sWC.Trim,v.Caller.CompanyCode,v.Caller.Terminal,v.Global.sAnswerFile)
+
+'reset file, simply reset count
+f.Intrinsic.String.Build("{0}\{1}_{2}{3}.Reset",v.Caller.FilesDir,v.Global.sWC.Trim,v.Caller.CompanyCode,v.Caller.Terminal,v.Global.sResetFile)
+
+'stop count, just stop the counter
+f.Intrinsic.String.Build("{0}\{1}_{2}{3}.Stop",v.Caller.FilesDir,v.Global.sWC.Trim,v.Caller.CompanyCode,v.Caller.Terminal,v.Global.sStopFile)
+
+Program.Sub.SetFQPs.End
+
+Program.Sub.OpenComPort.Start
+v.Local.sFile.Declare(string)
+v.Local.bExists.Declare(Boolean)
+v.Local.ssql.Declare(String)
+
+'Get Comport ID from TAble containing WC and Comport ID from Device Manager>comports>"com1" so the record will have "1" in the table.
+f.Intrinsic.String.Build("Select * from GCG_4407_PRESS_CFG where PRESS_ID = '{0}'",v.Global.sWC.Trim,v.Local.ssql)
+f.ODBC.Connection!conx.OpenRecordsetRO("rst",v.Local.ssql)
+f.Intrinsic.Control.If(v.ODBC.conx!rst.EOF,<>,true)
+	v.Global.iCommID.Set(v.ODBC.conx!rst.FieldValLong!COMPORT_ID)
+	
+f.Intrinsic.Control.EndIf
+f.ODBC.conx!rst.Close
+
+
+F.Intrinsic.Control.AddEventHandler("COMMONCOMM",DR)
+F.Communication.Serial.SetCOMPort(v.Global.iCommID)
+F.Communication.serial.SetParameters("9600,O,8,1")
+F.Communication.Serial.SetRTSEnable(True)
+F.Communication.Serial.OpenPort(True)
+Program.Sub.OpenComPort.End
+
+Program.Sub.IPMAnswer.Start
+	f.Intrinsic.UI.Beep
+	'test Message
+	f.Intrinsic.UI.InvokeWaitDialog(v.Args.message)
+	f.Intrinsic.UI.Sleep(1)
+	f.Intrinsic.UI.CloseWaitDialog
+	
+	
+Program.Sub.IPMAnswer.End
+
+Program.Sub.SetPassedVars.Start
+F.Intrinsic.Control.SetErrorHandler("SetPassedVars_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.ssql.Declare(String)
+v.Local.fFootage.Declare(float)
+v.Local.sTemp.Declare(String)
+
+
+'Only get passed information if on Start Job(Scan), or Update Pieces
+'f.Intrinsic.Control.If(v.Caller.Hook,=,15755,"OR",v.Caller.Hook,=,15840)
+	v.Global.sJob.Set(v.Passed.009990)
+	v.Global.sSuff.Set(v.Passed.009991)
+	v.Global.sSeq.Set(v.Passed.009992)
+	f.Intrinsic.Control.If(v.Caller.Hook,=,15820)
+		v.Global.sSeq.Set(v.Passed.009001)
+	f.Intrinsic.Control.EndIf
+	v.Global.sEmp.Set(v.Passed.009993)
+'	v.Global.sWC.Set(v.Passed.009996)
+	'instead of using passed wc, need to query jobs in process to get the correct one, based on employee, job, suffix, sequence. 
+	f.Intrinsic.String.Build("Select * from JOBS_IN_PROCESS_G where JOB = '{0}' and suffix = '{1}' and Seq = '{2}' and Employee = '{3}'",v.Global.sJob,v.Global.sSuff,v.Global.sSeq,v.Global.sEmp,v.Local.ssql)
+	f.ODBC.Connection!conx.OpenRecordsetRO("rstWC",v.Local.ssql)
+	f.Intrinsic.Control.If(v.ODBC.conx!rstWC.EOF,<>,true)
+		v.Global.sWC.Set(v.ODBC.conx!rstWC.FieldValTrim!WORKCENTER)
+	f.Intrinsic.Control.EndIf
+	f.ODBC.conx!rstWC.Close
+	
+	'Write Estimated Footage to Lbl_wo (run qty * units)
+	f.Intrinsic.String.Build("Select Hours_actual,Units from v_JOB_OPERATIONS where JOB = '{0}' and SUFFIX = '{1}' and LMO = 'M' and OPERATION like 'LF/%' ",v.Global.sJob,v.Global.sSuff,v.Local.ssql)
+	f.ODBC.Connection!conx.OpenRecordsetRO("rstFt",v.Local.ssql)
+	f.Intrinsic.Control.If(v.ODBC.conx!rstFt.EOF,<>,true)
+		gui.SS_Form1.lbl_Issued.Text(v.ODBC.conx!rstFt.FieldVal!Hours_Actual)
+		
+		f.Intrinsic.String.Build("Select QTY_ORDER from v_JOB_HEADER where JOB = '{0}' and Suffix = '{1}' ",v.Global.sJob,v.Global.sSuff,v.Local.ssql)
+		f.ODBC.Connection!conx.OpenRecordsetRO("rstRun",v.Local.ssql)
+		f.Intrinsic.Control.If(v.ODBC.conx!rstRun.EOF,<>,true)
+			f.Intrinsic.Math.Mult(v.ODBC.conx!rstFt.FieldValFloat!UNITS,v.ODBC.conx!rstRun.FieldValFloat!QTY_ORDER,v.Local.fFootage)
+			gui.SS_Form1.lbl_Footage.Text(v.Local.fFootage.String)
+			'Add to existing Records to get total footage.
+			f.Intrinsic.String.Build("Select sum(stop_count) as TOTAL_FTG from GCG_4407_PRESS_COUNT where JOB = '{0}' and Suffix = '{1}' and Seq = '{2}'",v.Global.sJob,v.Global.sSuff,v.Global.sSeq,v.Local.ssql)
+			f.ODBC.Connection!conx.OpenRecordsetRO("rstSum",v.Local.ssql)
+			f.Intrinsic.Control.If(V.ODBC.conx!rstSum.EOF,<>,true)
+				'display on label and store global variable that will be used as count increases.
+				v.Global.fTotalFTG.Set(v.ODBC.conx!rstSum.FieldVal!TOTAL_FTG)
+				gui.SS_Form1.lbl_Total.Text(v.Global.fTotalFTG.String)
+			f.Intrinsic.Control.EndIf
+			f.ODBC.conx!rstSum.Close
+		f.Intrinsic.Control.EndIf
+		f.ODBC.conx!rstRun.Close
+	f.Intrinsic.Control.EndIf
+	f.ODBC.conx!rstFt.Close
+
+'f.Intrinsic.Control.EndIf
+
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("SetPassedVars_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4407_PRESS_COUNTER.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.SetPassedVars.End
+
+Program.Sub.CheckWC.Start
+F.Intrinsic.Control.SetErrorHandler("CheckWC_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+v.Local.sSql.Declare(String)
+v.Local.bRet.Declare(String)
+
+'if it is in table and Description contains "PRESS"
+f.Intrinsic.String.Build("Select * from GCG_4407_PRESS_CFG where PRESS_ID = '{0}'",v.Global.sWC.Trim,v.Local.sSql)
+f.ODBC.Connection!conx.OpenRecordsetRO("rst",v.Local.sSql)
+f.Intrinsic.Control.If(v.ODBC.conx!rst.EOF,=,true)
+	f.ODBC.conx!rst.Close
+	f.Intrinsic.Control.End
+
+f.Intrinsic.Control.EndIf
+f.ODBC.conx!rst.Close
+
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CheckWC_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4407_PRESS_COUNTER.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CheckWC.End
+
+Program.Sub.checkEmployee.Start
+F.Intrinsic.Control.SetErrorHandler("checkEmployee_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+v.Local.sSql.Declare(String)
+v.Local.sTemp.Declare(String)
+
+'if the employee does not match the employee in the Current Data file, End program,
+'the other user logging into the same WC in this scenario is a helper.
+f.Intrinsic.File.File2String(v.Global.sCurrentDataFile,v.Local.sTemp)
+f.Intrinsic.String.Split(v.Local.sTemp,"*!*",v.Local.sTemp)
+f.Intrinsic.Control.If(v.Local.sTemp.UBound,<>,0)
+	f.Intrinsic.Control.If(v.Global.sEmp.Trim,<>,v.Local.sTemp(4).Trim)
+		f.Intrinsic.Control.End
+
+	f.Intrinsic.Control.EndIf
+f.Intrinsic.Control.EndIf
+			
+
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("checkEmployee_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4407_PRESS_COUNTER.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.checkEmployee.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_4407_PRESS_COUNTER.g2u.ga$}$SUPERVSR$}$2/7/2017 10:45:35 AM$}$False
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$SN90 transaction loads GSS Inventory into Sigma Nest
+Program.Sub.Comments.End
+
+SS_Form1{{CAPTION::Press Counter
+SS_Form1.CTRL{{NAME::lbl_JobInfo\\TYPE::1\\CAPTION::Job - Suffix - Sequence\\TABSTOP::0\\GROUP::-1\\BROWSER::0\\SIZE::1
+SS_Form1.CTRL{{NAME::lbl_CurrentCount\\TYPE::1\\CAPTION::000000\\TABSTOP::0\\GROUP::-1\\BROWSER::0\\SIZE::1
+SS_Form1.CTRL{{NAME::cmdOk\\TYPE::5\\CAPTION::Ok\\TABSTOP::0\\GROUP::-1\\BROWSER::0\\SIZE::1
+
+SS_Form2{{CAPTION::Select Com Port
+SS_Form2.CTRL{{NAME::txtComPort\\TYPE::2\\CAPTION::Enter Com Port# and Press Enter\\GROUP::-1\\BROWSER::0\\SIZE::1
+
+Program.Sub.ScreenSS.End
